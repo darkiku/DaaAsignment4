@@ -186,14 +186,6 @@ Range: 1-25 units (representing hours, cost units, or priority levels)
 Distribution: Uniform random within specified bounds per dataset
 Rationale: Models realistic variation in task durations and costs
 
-4.4 Weight Model Justification
-Edge weights represent task transition durations/costs because:
-
-Realistic modeling: Moving between tasks often requires setup time, resource reallocation, or context switching
-Flexibility: Edge weights can represent various metrics (time, cost, risk)
-Standard compatibility: Compatible with classical shortest path algorithms
-Dependency costs: Captures the cost of satisfying dependencies, not just task execution
-
 
 5. Experimental Results
 5.1 Test Environment
@@ -217,29 +209,6 @@ SCC Distribution Analysis:
 Pure DAGs (small_2, medium_3, large_3) produce V singleton SCCs
 Cyclic graphs show mix of singleton and multi-node SCCs
 Largest SCC of 8 nodes found in large_2, representing significant compression opportunity
-
-5.4 Topological Sort Performance
-DatasetComponentsEdges in DAGPush OpsPop OpsEdges TraversedTime (ms)small_1414410.12small_2878870.15small_3737730.14medium_1323320.18medium_2969960.28medium_318351818350.42large_1545540.35large_218151818150.67large_34516545451651.23
-Critical Finding: Condensation dramatically reduces graph complexity. Example: large_2 reduces from 35 vertices to 18 components (49% reduction), enabling much faster downstream processing.
-Queue Operation Analysis:
-
-Push operations exactly equal number of components (each vertex enqueued once)
-Pop operations equal push operations (all vertices successfully processed)
-Zero operations remaining confirms DAG property of condensation graph
-
-5.5 Path Algorithm Results
-DatasetShortest DistRelaxationsLongest DistCritical PathPath Lengthsmall_1347[0→1→2]2small_2241138[0→1→3→5→7]5small_318926[0→2→5→6]4medium_17615[0→1→2]3medium_2321848[0→3→7→12→14]6medium_3455072[0→4→9→13→17]8large_112828[0→1→2→3→4]5large_2584294[0→5→11→16→23→33]9large_389210156[0→7→15→24→34→40→44]12
-Critical Path Analysis:
-
-Critical path length (number of tasks) correlates with graph depth, not size
-Critical path distance (total duration) identifies true project bottlenecks
-For large_3: 12-task critical path determines minimum project duration of 156 units
-
-Relaxation Analysis:
-
-Relaxations strictly bounded by edge count (never exceeds |E|)
-Dense graphs (medium_3, large_3) require more relaxations
-Sparse graphs show much fewer relaxations relative to edge count
 
 
 6. Performance Analysis
@@ -273,29 +242,6 @@ Nearly identical to shortest path (same algorithmic structure)
 Maximization vs minimization has no performance impact
 
 Conclusion: All algorithms demonstrate true O(V+E) scaling, validating theoretical complexity analysis.
-6.2 Effect of Graph Structure
-Density Impact:
-Density RangeEdge OperationsTime ImpactExampleSparse (≤0.20)MinimalBaselinelarge_2: 0.15 densityMedium (0.20-0.40)Moderate1.5-2xsmall_1: 0.30 densityDense (>0.40)High2-3xmedium_1: 0.50 density
-Finding: Density directly affects constant factors but not asymptotic complexity. Dense graphs require 2-3x more edge operations but remain O(V+E).
-SCC Size Impact:
-SCC ConfigurationCompression RatioPerformance GainExampleAll singletons (DAG)0%Baselinesmall_2, large_3Small SCCs (2-5 nodes)20-40%Moderatesmall_1, medium_1Large SCCs (5+ nodes)40-60%Significantlarge_2 (35→18)
-Finding: Large SCCs enable dramatic graph compression through condensation, improving downstream algorithm performance by 40-60%.
-Graph Diameter Impact:
-Graphs with large diameter (longest shortest path) show:
-
-Longer critical paths in CPM analysis
-More path reconstruction steps
-Higher maximum distances in shortest path queries
-No impact on time complexity, only on result magnitudes
-
-6.3 Scalability Analysis
-Extrapolation to City Scale:
-For realistic smart city graph (1000 nodes, 5000 edges, density=0.005):
-
-SCC Detection: 0.023×1000 + 0.009×5000 + 0.15 ≈ 68ms
-Topological Sort: 0.016×1000 + 0.007×5000 + 0.08 ≈ 51ms
-Shortest Path: 0.005×5000 + 0.06 ≈ 25ms
-Total Processing: ~144ms < 200ms (practical for interactive applications)
 
 Scalability Limits:
 Graph SizeVerticesEdgesEstimated TimeFeasibilitySmall city100500~7msReal-timeMedium city1,0005,000~150msInteractiveLarge city10,00050,000~1,500msBatch processingMetropolis100,000500,000~15,000msOffline analysis
@@ -420,85 +366,6 @@ Deadline estimation with parallel tasks
 Resource planning and capacity analysis
 Construction and manufacturing scheduling
 
-8.3 Practical Recommendations
-For Smart City Implementations:
-
-Always Detect SCCs First
-
-Unknown graphs may contain cycles
-Condensation provides cleaner abstraction
-Handles circular dependencies gracefully
-Preprocessing cost amortized over multiple queries
-
-
-Use Condensation Graphs
-
-Simpler structure (guaranteed DAG)
-Better performance for path algorithms
-Clearer semantic meaning (each component is atomic unit)
-Enables component-level analysis
-
-
-Cache Topological Orderings
-
-Expensive to compute (O(V+E))
-Frequently reused in path algorithms
-Valid until graph structure changes
-Enables O(E) repeated queries instead of O(V+E)
-
-
-Monitor Critical Path Dynamically
-
-Identifies tasks that impact completion time
-Enables proactive delay management
-Supports what-if analysis for schedule changes
-Critical for deadline-driven projects
-
-
-Test with Realistic Data
-
-Synthetic random graphs may not match real structures
-Real dependency networks often have specific patterns
-Validate assumptions with actual city task data
-Consider domain-specific constraints
-
-
-
-For Implementation Quality:
-
-Comprehensive Testing
-
-Unit tests for each algorithm component
-Edge cases: empty graphs, single nodes, disconnected components
-Stress tests: large graphs, dense graphs, deep recursion
-Integration tests: full pipeline on realistic data
-
-
-Performance Monitoring
-
-Instrument all algorithms with metrics
-Track operation counts, execution time, memory usage
-Log performance data for production systems
-Analyze trends over time
-
-
-Error Handling
-
-Validate input graphs (format, consistency)
-Handle edge cases gracefully
-Provide clear error messages
-Fail fast on invalid inputs
-
-
-Documentation
-
-Algorithm complexity analysis
-Usage examples and patterns
-Performance characteristics
-Limitations and assumptions
-
-
-
 8.4 Future Extensions
 Algorithmic Enhancements:
 
@@ -508,21 +375,18 @@ Dynamic graph updates - incremental SCC/topo updates for changing graphs
 Probabilistic analysis - handle uncertain task durations with expected values
 
 System Integration:
-
 Real-time monitoring dashboard - visualize current critical path and slack times
 Automated alerting - notify when critical tasks are delayed
 What-if analysis tool - simulate schedule changes and impacts
 GIS integration - incorporate spatial dependencies for physical tasks
 
 Performance Optimizations:
-
 Parallel SCC detection - divide-and-conquer for very large graphs
 Incremental condensation - update condensation graph without full recomputation
 GPU acceleration - parallelize DP relaxations for dense graphs
 Distributed computing - partition city-scale graphs across multiple nodes
 
 Research Directions:
-
 Approximation algorithms - trade accuracy for speed in massive graphs
 Streaming algorithms - process graphs that don't fit in memory
 Machine learning integration - predict task durations from historical data
